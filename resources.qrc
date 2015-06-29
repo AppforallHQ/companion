@@ -1,0 +1,13 @@
+<RCC>
+    <qresource prefix="/logo">
+        <file>Resources/29.png</file>
+        <file>Resources/40-1.png</file>
+        <file>Resources/58-1.png</file>
+        <file>Resources/58.png</file>
+        <file>Resources/76.png</file>
+        <file>Resources/80-1.png</file>
+        <file>Resources/80.png</file>
+        <file>Resources/120.png</file>
+        <file>Resources/152.png</file>
+    </qresource>
+</RCC>

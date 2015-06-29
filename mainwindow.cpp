@@ -1,0 +1,169 @@
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+#include "deviceselect.h"
+#include "backupworker.h"
+
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QThread>
+#include <QtGui>
+
+MainWindow::MainWindow(QWidget *parent) :
+    QMainWindow(parent),
+    ui(new Ui::MainWindow)
+{
+    ui->setupUi(this);
+    this->isDeviceSelected = false;
+    this->deviceSelect = NULL;
+    this->selectDevice();
+}
+
+void MainWindow::selectDevice()
+{
+    if(!this->deviceSelect)
+    {
+        deviceSelect = new DeviceSelect();
+        deviceSelect->setModal(true);
+        connect(deviceSelect, SIGNAL(accepted()), this, SLOT(getSelectedDevice()));
+    }
+    
+    deviceSelect->show();
+}
+
+void MainWindow::getSelectedDevice()
+{
+    this->device = deviceSelect->getSelectedDevice();
+    this->isDeviceSelected = true;
+    
+    QVector<App> apps = DeviceAPI::getInstance().getAppsList(this->device.udid);
+    
+    ui->deviceAppsTableView->clear();
+    ui->deviceAppsTableView->setColumnCount(2);
+    ui->deviceAppsTableView->setRowCount(apps.length());
+    
+    int i = 0;
+    
+    foreach(const App &app, apps)
+    {
+        QTableWidgetItem* checkboxItem = new QTableWidgetItem("");
+        checkboxItem->setCheckState(Qt::Unchecked);
+        checkboxItem->setData(Qt::UserRole, app.bundleId);
+        ui->deviceAppsTableView->setItem(i, 0, checkboxItem);
+        
+        QTableWidgetItem* appNameItem = new QTableWidgetItem(app.name);
+        ui->deviceAppsTableView->setItem(i, 1, appNameItem);
+        
+//       QTableWidgetItem* appVersionItem = new QTableWidgetItem(app.version);
+//       ui->deviceAppsTableView->setItem(i, 2, appVersionItem);
+        
+        i++;
+    }
+    
+    QStringList headers;
+    headers << " " << "Application Name" << "Version";
+    ui->deviceAppsTableView->setHorizontalHeaderLabels(headers);
+    ui->deviceAppsTableView->setColumnWidth(0, 0);
+    ui->deviceAppsTableView->resizeColumnToContents(0);
+}
+
+MainWindow::~MainWindow()
+{
+    delete ui;
+}
+
+/*void MainWindow::on_selectAll_stateChanged(int state)
+{
+    if(state == Qt::Checked)
+    {
+        for(int i = 0; i < ui->deviceAppsTableView->rowCount(); i++)
+        {
+            ui->deviceAppsTableView->item(i, 0)->setCheckState(Qt::Checked);
+        }
+    }
+    else
+    {
+        for(int i = 0; i < ui->deviceAppsTableView->rowCount(); i++)
+        {
+            ui->deviceAppsTableView->item(i, 0)->setCheckState(Qt::Unchecked);
+        }
+    }
+}*/
+
+void MainWindow::on_backupButton_clicked(bool checked)
+{
+    QVector<QString> selectedBundleIds;
+    checked = false;
+    
+    for(int i = 0; i < ui->deviceAppsTableView->rowCount(); i++)
+    {
+        if(ui->deviceAppsTableView->item(i, 0)->checkState() == Qt::Checked)
+        {
+            selectedBundleIds.append(ui->deviceAppsTableView->item(i, 0)->data(Qt::UserRole).toString());
+        }
+    }
+    
+    if(selectedBundleIds.length() == 0)
+    {
+        QMessageBox messageBox;
+        messageBox.critical(this, "Error", "Please select at least one app to backup.", QMessageBox::Ok);
+        return;
+    }
+    
+    QString destinationPath = QFileDialog::getExistingDirectory(this, "Backup Destination", QString());
+    
+    if(destinationPath.length() == 0)
+        return;
+    
+    if(!progressDialog)
+    {
+        progressDialog = new QProgressDialog(this);
+        progressDialog->setWindowModality(Qt::WindowModal);
+    }
+    
+    QString progressMessage = QString("Transfering apps from device (%1/%2)..."); 
+    this->progressDialog->setLabelText(progressMessage.arg("0", QString::number(selectedBundleIds.length())));
+    this->progressDialog->setMinimum(0);
+    this->progressDialog->setMaximum(selectedBundleIds.length());
+    
+    QThread* backupThread = new QThread();
+    BackupWorker* backupWorker = new BackupWorker(this->device.udid, selectedBundleIds, destinationPath);
+    backupWorker->moveToThread(backupThread);
+    
+    // connecting signals
+    connect(backupWorker, SIGNAL(update(int, int, int)), this, SLOT(updateBackupProgress(int,int,int)));
+    connect(backupThread, SIGNAL(started()), backupWorker, SLOT(process()));
+    connect(backupThread, SIGNAL(finished()), backupThread, SLOT(deleteLater()));
+    connect(backupWorker, SIGNAL(finished()), backupThread, SLOT(quit()));
+    connect(backupWorker, SIGNAL(finished()), this, SLOT(finishBackup()));
+    connect(backupWorker, SIGNAL(finished()), backupWorker, SLOT(deleteLater()));
+    connect(progressDialog, SIGNAL(canceled()), backupWorker, SLOT(cancel()));
+    
+    backupThread->start();
+    progressDialog->exec();
+}
+
+void MainWindow::updateBackupProgress(int success, int failure, int total)
+{
+    QString message;
+    
+    if(failure == 0)
+    {
+        message = QString("Transfering apps from device (%1/%2)...").arg(QString::number(success),
+                                                                         QString::number(total));
+    }
+    else
+    {
+       message = QString("Transfering apps from device (%1/%2), %3 failed...").arg(QString::number(success),
+                                                                                   QString::number(total),
+                                                                                   QString::number(failure)); 
+    }
+    
+    this->progressDialog->setLabelText(message);
+    this->progressDialog->setValue(success + failure);
+}
+
+void MainWindow::finishBackup()
+{
+    this->progressDialog->close();
+    QMessageBox::information(this, "Backup done.", "Backup finished successfully.");
+}
