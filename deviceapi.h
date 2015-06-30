@@ -26,6 +26,7 @@ public:
     QVector<Device> getDevicesList();
     QVector<App> getAppsList(QString udid, bool userOnly=true);
     bool backupApp(QString udid, QString bundleId, QString targetDir);
+    bool restoreApp(QString udid, QString filePath);
     
 private:
     DeviceAPI() {}

@@ -31,6 +31,8 @@ public slots:
 private slots:
     void on_backupButton_clicked(bool checked);
     
+    void on_restoreDirBrowseButton_clicked();
+    
 private:
     Ui::MainWindow *ui;
     DeviceSelect* deviceSelect;

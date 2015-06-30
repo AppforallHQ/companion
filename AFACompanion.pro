@@ -17,14 +17,16 @@ SOURCES += main.cpp\
     deviceapi.cpp \
     plistparser.cpp \
     plistserializer.cpp \
-    backupworker.cpp
+    backupworker.cpp \
+    restoreworker.cpp
 
 HEADERS  += mainwindow.h \
             deviceselect.h \
     deviceapi.h \
     plistparser.h \
     plistserializer.h \
-    backupworker.h
+    backupworker.h \
+    restoreworker.h
 
 FORMS    += mainwindow.ui \
             deviceselect.ui

@@ -25,6 +25,7 @@ void MainWindow::selectDevice()
         deviceSelect = new DeviceSelect();
         deviceSelect->setModal(true);
         connect(deviceSelect, SIGNAL(accepted()), this, SLOT(getSelectedDevice()));
+        connect(deviceSelect, SIGNAL(rejected()), this, SLOT(close()));
     }
     
     deviceSelect->show();
@@ -33,7 +34,16 @@ void MainWindow::selectDevice()
 void MainWindow::getSelectedDevice()
 {
     this->device = deviceSelect->getSelectedDevice();
+    
+    if(this->device.udid.length() == 0)
+    {
+        exit(0);
+        return;
+    }
+    
     this->isDeviceSelected = true;
+    
+    ui->statusBar->showMessage(QString("%1 (%2)").arg(this->device.name, this->device.udid));
     
     QVector<App> apps = DeviceAPI::getInstance().getAppsList(this->device.udid);
     
@@ -62,7 +72,6 @@ void MainWindow::getSelectedDevice()
     QStringList headers;
     headers << " " << "Application Name" << "Version";
     ui->deviceAppsTableView->setHorizontalHeaderLabels(headers);
-    ui->deviceAppsTableView->setColumnWidth(0, 0);
     ui->deviceAppsTableView->resizeColumnToContents(0);
 }
 
@@ -166,4 +175,56 @@ void MainWindow::finishBackup()
 {
     this->progressDialog->close();
     QMessageBox::information(this, "Backup done.", "Backup finished successfully.");
+}
+
+void MainWindow::on_restoreDirBrowseButton_clicked()
+{
+    QString restorePath = QFileDialog::getExistingDirectory(this, "Restore", QString());
+    ui->restoreDirLineEdit->setText(restorePath);
+    
+    QDir restoreDir = QDir(restorePath, "*.ipa");
+    if(restoreDir.count() == 0)
+    {
+        QMessageBox::critical(this, "Error", "No files found to restore.");
+        return;
+    }
+    
+    ui->restoreFilesTableView->clear();
+    ui->restoreFilesTableView->setColumnCount(2);
+    ui->restoreFilesTableView->setRowCount(restoreDir.count());
+    
+    int i = 0;
+    
+    foreach(const QFileInfo &ipa, restoreDir.entryInfoList())
+    {
+        QTableWidgetItem* checkboxItem = new QTableWidgetItem("");
+        checkboxItem->setCheckState(Qt::Checked);
+        checkboxItem->setData(Qt::UserRole, ipa.filePath());
+        ui->restoreFilesTableView->setItem(i, 0, checkboxItem);
+        
+        QTableWidgetItem* appNameItem = new QTableWidgetItem(ipa.fileName());
+        ui->restoreFilesTableView->setItem(i, 1, appNameItem);
+        
+        i++;
+    }
+    
+    QStringList headers;
+    headers << " " << "File Name" << "Version";
+    ui->restoreFilesTableView->setHorizontalHeaderLabels(headers);
+    ui->restoreFilesTableView->resizeColumnToContents(0);
+}
+
+void MainWindow::on_restoreButton_clicked()
+{
+    QVector<QString> selectedFiles;
+    
+    for(int i = 0; i < ui->deviceAppsTableView->rowCount(); i++)
+    {
+        if(ui->restoreFilesTableView->item(i, 0)->checkState() == Qt::Checked)
+        {
+            selectedFiles.append(ui->restoreFilesTableView->item(i, 0)->data(Qt::UserRole).toString());
+        }
+    }
+    
+    
 }

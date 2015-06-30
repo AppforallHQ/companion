@@ -11,6 +11,9 @@
 #define DEVICE_NAME_COMMAND "/usr/local/bin/idevice_id %1"
 #define GET_APP_LIST_COMMAND "/usr/local/bin/ideviceinstaller -u %1 -l -o xml"
 #define BACKUP_APP_COMMAND "/usr/local/bin/ideviceinstaller -u %1 -a %2 -o copy=\"%3\" -o remove"
+#define RESTORE_APP_COMMAND "/usr/local/bin/ideviceinstaller -u %1 -i \"%2\""
+
+#define COMMAND_TIMEOUT 120000
 
 QVector<Device> DeviceAPI::getDevicesList()
 {
@@ -114,11 +117,19 @@ bool DeviceAPI::backupApp(QString udid, QString bundleId, QString targetDir)
 {
     QProcess backupProcess;
     backupProcess.start(QString(BACKUP_APP_COMMAND).arg(udid, bundleId, targetDir));
-    backupProcess.waitForFinished(-1);
-    
-    if(backupProcess.exitCode() == 0)    
-        return true;
-    else
+    if(!backupProcess.waitForFinished(TIMEOUT))
         return false;
+    
+    return backupProcess.exitCode() == 0;
+}
+
+bool DeviceAPI::restoreApp(QString udid, QString filePath)
+{
+    QProcess restoreProcess;
+    restoreProcess.start(QString(RESTORE_APP_COMMAND).arg(udid, filePath));
+    if(!restoreProcess.waitForFinished(TIMEOUT))
+        return false;
+    
+    return restoreProcess.exitCode() == 0;
 }
 
